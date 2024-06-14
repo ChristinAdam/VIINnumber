@@ -2,14 +2,8 @@ const express = require("express");
 const multer = require("multer");
 const xlsx = require("xlsx");
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 const app = express();
 const port = 3003;
-
-// VIN API configuration
-const VIN_Url = "https://auto.dev/api/listings";
-const API_key = "ZrQEPSkKY2hyaXN0aW5hZGFtejc4NkBnbWFpbC5jb20=";
 
 // Multer storage configuration
 const storage = multer.diskStorage({
@@ -48,27 +42,24 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         if (typeof vehicleDetails === "string" && isVIN(vehicleDetails)) {
           console.log(`Valid VIN found: ${vehicleDetails}`);
           try {
-            const response = await axios.get(`${VIN_Url}?vin=${vehicleDetails}&apikey=${API_key}`);
-            const records = response.data.records;
+            const response = await axios.get(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${vehicleDetails}?format=json`);
 
-            if (records && records.length > 0) {
-              const carDetails = records[0];
+            if (response.data.Results && response.data.Results.length > 0) {
+              const carDetails = response.data.Results[0];
 
-              // Replace VIN with car make and model
-              if (carDetails.make && carDetails.model) {
-                row[vehicleDetailsIndex] = `${carDetails.make} ${carDetails.model}`;
-                console.log(`Replaced VIN with: ${carDetails.make} ${carDetails.model}`);
-              } else {
-                row[vehicleDetailsIndex] = "Unknown Car";
-                console.log("Car details not found, marked as Unknown Car");
-              }
+              // Replace VIN with car make, model, and year
+              const make = carDetails.Make;
+              const model = carDetails.Model;
+              const year = carDetails.ModelYear;
+              row[vehicleDetailsIndex] = `${make} ${model} (${year})`;
+              console.log(`Replaced VIN with: ${make} ${model} (${year})`);
             } else {
               row[vehicleDetailsIndex] = "Unknown Car";
               console.log("No records found, marked as Unknown Car");
             }
           } catch (error) {
             console.error(`Error fetching data for VIN: ${vehicleDetails}`, error);
-            row[vehicleDetailsIndex] = "Error fetching car details";
+            row[vehicleDetailsIndex] = `Error fetching data for VIN: ${vehicleDetails}`;
           }
         } else {
           console.log(`Invalid or missing VIN: ${vehicleDetails}`);
@@ -110,3 +101,4 @@ function isVIN(vin) {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
